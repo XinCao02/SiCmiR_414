@@ -307,9 +307,12 @@ def pearson_corr(preds: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
     vx = preds_flat - preds_flat.mean()
     vy = targets_flat - targets_flat.mean()
 
-    # Standard Pearson correlation components
+    # Compute numerator and denominator using the standard Pearson formula
     numerator = (vx * vy).sum()
-    denominator = torch.sqrt((vx ** 2).sum()) * torch.sqrt((vy ** 2).sum()) + 1e-8  # prevent divide‑by‑zero
+
+    # Use squared terms (‖x‖₂ · ‖y‖₂) in the denominator—not fourth power—
+    # and add a small epsilon for numerical stability
+    denominator = torch.sqrt((vx ** 2).sum()) * torch.sqrt((vy ** 2).sum()) + 1e-8
 
     return numerator / denominator
 
@@ -333,10 +336,10 @@ for line in lines:
     check_list.append(line)
 
 # check_list = check_list[1:]   ### Xiaoxuan师姐之前多写了这行，去掉看看
-print('After filter num col ——', len(y_test_P.columns.intersection(check_list)))    # 只剩414
-#filter出414的表达矩阵
-y_train_P = y_train_P[y_train_P.columns.intersection(check_list)]
-y_test_P = y_test_P[y_test_P.columns.intersection(check_list)]
+print('After filter num col ——', len(y_test_P.columns))    # 仍为原来的
+#filter出414的表达矩阵 ###本代码不filter
+# y_train_P = y_train_P[y_train_P.columns.intersection(check_list)]
+# y_test_P = y_test_P[y_test_P.columns.intersection(check_list)]
 
 #dataloading
 X_train_Tensor = torch.tensor(X_train_P.values,dtype=torch.float)
@@ -368,13 +371,13 @@ import datetime as dt
 ### ====================================== 设置训练参数 ===============================
 start = dt.datetime.now()
 batch_size = 64     #batch_size = 64
-hidden_size = 4096*2          #512 for Transformer
+hidden_size = 2048          #512 for Transformer
 input_size, output_size = X_train_Tensor.shape[1] ,y_train_Tensor.shape[1] #参数
-learning_rate = 0.4    #0.00068
-eta_min_param = 0.0    #0.9 #Cos Anneal for Transformer
+learning_rate = 0.056    #0.00068
+eta_min_param = 0.1    #0.9 #Cos Anneal for Transformer
 eta_min = learning_rate * eta_min_param
 weight_decay = 2e-4
-epoch = 3000  # total number of training epochs
+epoch = 7500  # total number of training epochs
 dropout = 0.35
 net_name = "ResNetMLP" #选择模型
 num_layers = 3 # number of layers in the model
@@ -396,7 +399,8 @@ net = net.to(device)
 print(f"Model Architecture:\n{net}")
 
 # Optimizer and scheduler
-optimizer_name = "SGD"  # Choose from 'SGD', 'Adam', 'AdamW', 'Adamax', 'RMSprop', 'Adagrad'
+optimizer_name = "Adam"  # Choose from 'SGD', 'Adam', 'AdamW', 'Adamax', 'RMSprop', 'Adagrad'
+
 if optimizer_name == "SGD":
     optimizer = torch.optim.SGD(net.parameters(), lr=learning_rate, weight_decay=weight_decay)
 elif optimizer_name == "Adam":
@@ -431,7 +435,8 @@ print(f"Hyperparameters: \n"
       f"  - Num heads: {nheads}\n"
 )
 
-wandb.init(project="sicmirkan_414", 
+# wandb.init(settings=wandb.Settings(init_timeout=120))
+wandb.init(project="sicmir_1298", 
            entity="xincao02-chinese-university-of-hong-kong-shenzhen", 
            name=time.strftime('%m%d_%H:%M:%S'), config={
     "learning_rate": learning_rate,
@@ -439,6 +444,7 @@ wandb.init(project="sicmirkan_414",
     "hidden_size": hidden_size,
     "weight_decay": weight_decay,
     "dropout": dropout,
+    "net": net,
 })
 ### ====================================== 设置训练参数 ===============================
 
@@ -566,11 +572,11 @@ for epoch_idx in tqdm(range(epoch), desc="Training Epochs"):
         "LearningRate": current_lr,
         "Parameters/HiddenSize": hidden_size,
         "Parameters/Dropout": dropout,
-        "Parameters/CosAnneal_EtaMin": eta_min,
+        "Parameters/CosAnneal_EtaMin": eta_min_param,
         "Parameters/WeightDecay": weight_decay,
         "Parameters/Epochs": epoch,
         "Parameters/BatchSize": batch_size,
-        "Parameters/Model": net,
+        "Parameters/Model": net_name,
         "Parameters/Optimizer": optimizer_name,
         "Parameters/NumLayers": num_layers,
         "Parameters/NumHeads": nheads,
